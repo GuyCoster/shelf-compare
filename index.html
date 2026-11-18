@@ -30,6 +30,23 @@ form.search{display:flex;gap:8px;flex-wrap:wrap;background:var(--paper);border:1
 form.search select{border:0;background:var(--bg);border-radius:9px;padding:10px}
 form.search input{flex:1 1 220px;border:0;background:transparent;padding:10px;outline:none;font-size:16px}
 form.search button{border:0;background:var(--ink);color:var(--paper);border-radius:9px;padding:10px 18px;font-weight:600;cursor:pointer}
+.keybar{margin-top:10px}
+.keybar .chip b{color:var(--ink)}
+.keybar .chip.ok b{color:var(--match)}
+.keypanel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:8px;font-size:14px}
+.keypanel p{margin:0 0 6px}.keypanel ol{margin:0 0 10px;padding-left:20px}.keypanel li{margin:3px 0}
+.keypanel code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12px}
+.keyrow{display:flex;gap:6px;flex-wrap:wrap}
+.keyrow input{flex:1 1 200px;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 10px;font-size:16px}
+.keyrow button{border:0;background:var(--ink);color:var(--paper);border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointer}
+.keyrow button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+.fine{font-size:12px;color:var(--muted);margin-top:8px!important}
+.toc{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.toc h4{font-family:Fraunces,serif;font-size:17px;margin:0 0 2px}
+.toc .src{font-size:12px;color:var(--muted);margin-bottom:8px}
+.toc ol{list-style:none;margin:0;padding:0;font-size:14px;max-height:340px;overflow:auto}
+.toc li{display:flex;gap:8px;padding:4px 0;border-bottom:1px dashed var(--line)}
+.toc li .t{flex:1}.toc li .p{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
 .history{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0}
 .chip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:3px 10px;font-size:13px;cursor:pointer;color:var(--muted)}
 .chip:hover{border-color:var(--ink);color:var(--ink)}
@@ -138,6 +155,19 @@ table.cmp td.only{background:var(--match-soft)}
   <input id="q" type="search" placeholder="e.g. The Left Hand of Darkness" autocomplete="off" required>
   <button type="submit">Search</button>
 </form>
+<div class="keybar">
+  <button type="button" class="chip" id="keytoggle">⚙ Google API key: <b id="keystate">not set</b></button>
+  <div class="keypanel" id="keypanel" hidden>
+    <p>Without a key, Google Books uses a shared free limit that is usually used up, so its results come back empty. Add your own free key:</p>
+    <ol>
+      <li>Open <a href="https://console.cloud.google.com/apis/library/books.googleapis.com" target="_blank" rel="noopener">console.cloud.google.com → Books API</a> and tap <b>Enable</b>.</li>
+      <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a> → <b>Create credentials → API key</b>.</li>
+      <li>Recommended: under the key's restrictions, allow only <b>Books API</b> and the website <code>guycoster.github.io/*</code>.</li>
+    </ol>
+    <div class="keyrow"><input id="keyinput" type="password" placeholder="Paste key (AIza…)" autocomplete="off"><button type="button" id="keysave">Save</button><button type="button" id="keyclear" class="ghost">Clear</button></div>
+    <p class="fine">The key is saved only in this browser on this device and is never sent to GitHub.</p>
+  </div>
+</div>
 <div class="history" id="history"></div>
 <div class="suggest" id="suggest">Try:
   <button class="chip" data-f="title" data-q="dune">Title: Dune</button>
@@ -169,11 +199,19 @@ function gQuery(q, field){
   const p = {all:"", title:"intitle:", author:"inauthor:", subject:"subject:", isbn:"isbn:"}[field];
   return field==="all" ? q : q.split(/\s+/).length>1 && field!=="isbn" ? `${p}"${q}"` : p+q.replace(/[-\s]/g, field==="isbn"?"":" ");
 }
+const KEY_STORE = "shelfcompare.gkey";
+let gKey = ""; try{ gKey = localStorage.getItem(KEY_STORE)||""; }catch{}
 async function fetchGoogle(q, field, page){
-  const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(gQuery(q,field))}&maxResults=${PAGE}&startIndex=${page*PAGE}&printType=books`;
+  const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(gQuery(q,field))}&maxResults=${PAGE}&startIndex=${page*PAGE}&printType=books${gKey?`&key=${encodeURIComponent(gKey)}`:""}`;
   const t = performance.now();
   const r = await fetch(url);
-  if(!r.ok) throw new Error(r.status===429 ? "Google Books rate limit reached — wait a minute and retry." : `Google Books error ${r.status}`);
+  if(!r.ok){
+    let msg = ""; try{ msg = (await r.json())?.error?.message || ""; }catch{}
+    if((r.status===429||r.status===403) && !gKey) throw new Error(`Google's shared free limit is used up (HTTP ${r.status}). Add your own free key with “⚙ Google API key” above.`);
+    if(r.status===429) throw new Error(`Your key hit its rate limit (HTTP 429). Wait a minute and try again. ${msg}`);
+    if(r.status===400||r.status===403) throw new Error(`Google rejected the request (HTTP ${r.status}): ${msg||"check that the key is correct and the Books API is enabled"}`);
+    throw new Error(`Google Books error ${r.status}${msg?": "+msg:""}`);
+  }
   const j = await r.json();
   return {ms: performance.now()-t, total: j.totalItems||0, items:(j.items||[]).map(normGoogle)};
 }
@@ -231,6 +269,35 @@ async function olDescription(key){
     const j = await r.json();
     const d = j.description; return typeof d==="string"?d:(d?.value||"");
   }catch{ return ""; }
+}
+/* Table of contents: neither search API returns one; Open Library editions sometimes carry it. */
+function tocItems(ed){
+  return (ed?.table_of_contents||[]).map(x=>typeof x==="string"?{title:x,level:0}:{title:x.title||x.label||"",label:x.label||"",page:x.pagenum||"",level:+x.level||0}).filter(x=>x.title);
+}
+async function findTOC(g, o){
+  for(const isbn of (g?.isbns||[]).slice(0,3)){
+    try{
+      const r = await fetch(`https://openlibrary.org/isbn/${isbn}.json`); if(!r.ok) continue;
+      const ed = await r.json(); const items = tocItems(ed);
+      if(items.length) return {items, ed, note:`Open Library edition with the same ISBN as Google's (${isbn})`};
+    }catch{}
+  }
+  if(o){
+    try{
+      const r = await fetch(`https://openlibrary.org${o.id}/editions.json?limit=50`);
+      const j = await r.json();
+      let best=null, bestItems=[];
+      for(const ed of j.entries||[]){ const it=tocItems(ed); if(it.length>bestItems.length){best=ed;bestItems=it;} }
+      if(best) return {items:bestItems, ed:best, note:"Open Library, from one edition of this work"};
+    }catch{}
+  }
+  return null;
+}
+function tocHTML(res){
+  if(!res) return `<h4>Contents</h4><div class="src">No table of contents found. Google Books' API doesn't provide one, and Open Library has none listed for this book's editions.</div>`;
+  const ed=res.ed, edLabel=[ed.title, ed.publish_date, (ed.publishers||[])[0]].filter(Boolean).join(" · ");
+  return `<h4>Contents</h4><div class="src">${esc(res.note)}: <a href="https://openlibrary.org${esc(ed.key)}" target="_blank" rel="noopener">${esc(edLabel)} ↗</a></div>
+  <ol>${res.items.map(x=>`<li style="padding-left:${Math.min(x.level,4)*14}px"><span class="t">${x.label?`<b>${esc(x.label)}</b> `:""}${esc(x.title)}</span>${x.page?`<span class="p">${esc(x.page)}</span>`:""}</li>`).join("")}</ol>`;
 }
 
 /* ---------- Matching ---------- */
@@ -445,7 +512,10 @@ async function openCompare(g, o){
       ${gWins.length?`<li><span class="tag-g">Google</span> adds: ${gWins.join(", ")}.</li>`:""}
       ${oWins.length?`<li><span class="tag-ol">Open Library</span> adds: ${oWins.join(", ")}.</li>`:""}
     </ul></div>`:""}
+    <div class="toc" id="toc"><h4>Contents</h4><div class="src"><span class="spin"></span> Looking for a table of contents…</div></div>
   </div>`;
+  const openedFor = title;
+  findTOC(g, o).then(res=>{ const el=$("#toc"); if(el && $("#drawer .dhead h2")?.textContent===openedFor) el.innerHTML=tocHTML(res); });
   D.classList.add("on"); $("#scrim").classList.add("on"); D.setAttribute("aria-hidden","false"); D.scrollTop=0;
   if(o){
     const d = await olDescription(o.id);
@@ -477,6 +547,25 @@ document.addEventListener("change", e=>{
   if(e.target.id==="mo"){ state.matchedOnly=e.target.checked; render(); }
 });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+
+/* ---------- Google API key ---------- */
+function renderKey(){
+  $("#keystate").textContent = gKey ? "saved ✓" : "not set";
+  $("#keytoggle").classList.toggle("ok", !!gKey);
+  $("#keyinput").value = gKey;
+}
+function setKey(k){
+  gKey = k.trim();
+  try{ gKey ? localStorage.setItem(KEY_STORE, gKey) : localStorage.removeItem(KEY_STORE); }catch{}
+  renderKey();
+  if(gKey) $("#keypanel").hidden = true;
+  if(state.q) search(state.q, state.field);
+}
+$("#keytoggle").addEventListener("click", ()=>{ $("#keypanel").hidden = !$("#keypanel").hidden; });
+$("#keysave").addEventListener("click", ()=>setKey($("#keyinput").value));
+$("#keyclear").addEventListener("click", ()=>setKey(""));
+$("#keyinput").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); setKey(e.target.value); } });
+renderKey();
 </script>
 </body>
 </html>
