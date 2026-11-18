@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shelf Compare — Google Books × Open Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f2ea;--paper:#fffdf8;--ink:#1f1b16;--muted:#6d655a;--line:#e3dccf;
+  --g:#2f5bd3;--g-soft:#e6ecfb;--ol:#b5532a;--ol-soft:#f8e8df;--match:#2e7d4f;--match-soft:#e3f2e8;
+  --diff:#fff3c4;--shadow:0 1px 2px rgba(0,0,0,.05),0 4px 14px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#16140f;--paper:#1f1c16;--ink:#f1ebe0;--muted:#a59c8e;--line:#363026;
+  --g:#86a6ff;--g-soft:#1d2741;--ol:#f0946a;--ol-soft:#3a2219;--match:#6fcf97;--match-soft:#183025;--diff:#4a3f12;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Inter,system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}
+a{color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 60px}
+header h1{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:clamp(26px,4vw,38px);margin:0;letter-spacing:-.01em}
+header p{margin:4px 0 18px;color:var(--muted)}
+.tag-g{color:var(--g);font-weight:600}.tag-ol{color:var(--ol);font-weight:600}
+
+form.search{display:flex;gap:8px;flex-wrap:wrap;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px;box-shadow:var(--shadow)}
+form.search select{border:0;background:var(--bg);border-radius:9px;padding:10px}
+form.search input{flex:1 1 220px;border:0;background:transparent;padding:10px;outline:none;font-size:16px}
+form.search button{border:0;background:var(--ink);color:var(--paper);border-radius:9px;padding:10px 18px;font-weight:600;cursor:pointer}
+.history{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0}
+.chip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:3px 10px;font-size:13px;cursor:pointer;color:var(--muted)}
+.chip:hover{border-color:var(--ink);color:var(--ink)}
+.suggest{margin-top:10px;color:var(--muted);font-size:13px}
+.suggest .chip{margin:2px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:22px 0 10px}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.stat .v{display:flex;gap:12px;align-items:baseline;margin-top:4px;font-variant-numeric:tabular-nums}
+.stat .v b{font-size:18px}
+.bar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--line);margin-top:8px}
+.bar i{display:block}
+
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0 12px}
+.seg{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--muted);font-weight:500}
+.seg button.on{background:var(--ink);color:var(--paper)}
+.toolbar label{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.toolbar select{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+.spacer{flex:1}
+
+.colhead{display:grid;grid-template-columns:1fr 34px 1fr;gap:8px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:2;font-weight:600;font-size:13px}
+.colhead div:first-child{color:var(--g)}.colhead div:last-child{color:var(--ol)}
+.row{display:grid;grid-template-columns:1fr 34px 1fr;gap:8px;margin-bottom:8px;cursor:pointer}
+.row .link{display:flex;align-items:center;justify-content:center}
+.row .link span{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;background:var(--line);color:var(--muted)}
+.row.matched .link span{background:var(--match-soft);color:var(--match)}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;gap:10px;min-width:0;box-shadow:var(--shadow);transition:transform .1s,border-color .1s}
+.row:hover .card,.grid .card:hover{border-color:var(--ink)}
+.card.g{border-left:3px solid var(--g)}.card.ol{border-left:3px solid var(--ol)}
+.card.empty{background:transparent;border-style:dashed;box-shadow:none;color:var(--muted);font-size:13px;align-items:center;justify-content:center;text-align:center}
+.cover{flex:0 0 54px;height:80px;border-radius:4px;background:var(--line);object-fit:cover;display:grid;place-items:center;font-family:Fraunces,serif;font-size:20px;color:var(--muted);overflow:hidden}
+.card .meta{min-width:0;flex:1}
+.card h3{font-family:Fraunces,Georgia,serif;font-weight:500;font-size:15px;margin:0 0 2px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .au{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .facts{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--muted);margin-top:6px}
+.card .facts .star{color:#c98a00}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.grid .card{cursor:pointer}
+.badge{font-size:11px;padding:1px 6px;border-radius:5px;background:var(--match-soft);color:var(--match);font-weight:600}
+
+.status{padding:30px;text-align:center;color:var(--muted)}
+.err{background:var(--ol-soft);color:var(--ol);border-radius:10px;padding:8px 12px;font-size:13px;margin:6px 0}
+.more{display:block;margin:18px auto;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:10px 20px;cursor:pointer;font-weight:600}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px}
+@keyframes s{to{transform:rotate(1turn)}}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:.2s;z-index:10}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,100%);background:var(--paper);z-index:11;transform:translateX(100%);transition:.25s;overflow:auto;box-shadow:-10px 0 30px rgba(0,0,0,.15)}
+.drawer.on{transform:none}
+.dhead{position:sticky;top:0;background:var(--paper);border-bottom:1px solid var(--line);padding:14px 16px;display:flex;gap:10px;align-items:flex-start;z-index:1}
+.dhead h2{font-family:Fraunces,serif;margin:0;font-size:22px;flex:1;line-height:1.2}
+.x{border:0;background:var(--bg);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:18px}
+.dbody{padding:16px}
+.covers{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.covers figure{margin:0;text-align:center}
+.covers img,.covers .ph{width:110px;height:165px;object-fit:cover;border-radius:6px;background:var(--line);display:inline-grid;place-items:center;color:var(--muted);font-size:12px}
+.covers figcaption{font-size:12px;font-weight:600;margin-top:4px}
+table.cmp{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
+table.cmp th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;width:96px;vertical-align:top;padding:8px 6px 8px 0}
+table.cmp td{vertical-align:top;padding:8px 6px;border-top:1px solid var(--line);word-wrap:break-word}
+table.cmp tr:first-child td{border-top:0}
+table.cmp thead td{font-weight:600;font-size:13px;border:0}
+table.cmp td.diff{background:var(--diff)}
+table.cmp td.only{background:var(--match-soft)}
+.na{color:var(--muted);font-style:italic}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0 4px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+.desc{max-height:180px;overflow:auto;font-size:13px}
+.links a{display:inline-block;margin:2px 6px 2px 0;font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.verdict{background:var(--bg);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:14px}
+.verdict ul{margin:4px 0 0;padding-left:18px}
+
+@media (max-width:640px){
+  .wrap{padding:14px 10px 50px}
+  .row,.colhead{grid-template-columns:1fr 22px 1fr;gap:5px}
+  .row .link span{width:20px;height:20px;font-size:11px}
+  .card{flex-direction:column;padding:8px;gap:6px}
+  .cover{flex:none;width:100%;height:110px;font-size:28px}
+  .card h3{font-size:14px}
+  .card .facts{font-size:11px}
+  table.cmp th{width:70px}
+  table.cmp{font-size:13px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Shelf Compare</h1>
+  <p>Search once, read both catalogs: <span class="tag-g">Google Books</span> and <span class="tag-ol">Open Library</span>, matched book by book.</p>
+</header>
+
+<form class="search" id="form">
+  <select id="field" aria-label="Search field">
+    <option value="all">Anything</option>
+    <option value="title">Title</option>
+    <option value="author">Author</option>
+    <option value="subject">Subject</option>
+    <option value="isbn">ISBN</option>
+  </select>
+  <input id="q" type="search" placeholder="e.g. The Left Hand of Darkness" autocomplete="off" required>
+  <button type="submit">Search</button>
+</form>
+<div class="history" id="history"></div>
+<div class="suggest" id="suggest">Try:
+  <button class="chip" data-f="title" data-q="dune">Title: Dune</button>
+  <button class="chip" data-f="author" data-q="ursula k le guin">Author: Ursula K. Le Guin</button>
+  <button class="chip" data-f="subject" data-q="stoicism">Subject: Stoicism</button>
+  <button class="chip" data-f="isbn" data-q="9780141439518">ISBN: 9780141439518</button>
+</div>
+
+<div id="results"></div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const PAGE = 20;
+
+const state = {
+  q:"", field:"all", view:"pairs", sort:"relevance", matchedOnly:false,
+  g:{items:[], total:0, ms:0, err:null, page:0, done:false},
+  ol:{items:[], total:0, ms:0, err:null, page:0, done:false},
+  pairs:[], history:[], loading:false, token:0
+};
+
+/* ---------- API: Google Books ---------- */
+function gQuery(q, field){
+  const p = {all:"", title:"intitle:", author:"inauthor:", subject:"subject:", isbn:"isbn:"}[field];
+  return field==="all" ? q : q.split(/\s+/).length>1 && field!=="isbn" ? `${p}"${q}"` : p+q.replace(/[-\s]/g, field==="isbn"?"":" ");
+}
+async function fetchGoogle(q, field, page){
+  const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(gQuery(q,field))}&maxResults=${PAGE}&startIndex=${page*PAGE}&printType=books`;
+  const t = performance.now();
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(r.status===429 ? "Google Books rate limit reached — wait a minute and retry." : `Google Books error ${r.status}`);
+  const j = await r.json();
+  return {ms: performance.now()-t, total: j.totalItems||0, items:(j.items||[]).map(normGoogle)};
+}
+function normGoogle(it){
+  const v = it.volumeInfo||{}, s = it.saleInfo||{}, a = it.accessInfo||{};
+  const ids = (v.industryIdentifiers||[]);
+  const isbns = ids.filter(x=>/ISBN/.test(x.type)).map(x=>x.identifier);
+  let img = v.imageLinks?.thumbnail || v.imageLinks?.smallThumbnail || "";
+  img = img.replace(/^http:/,"https:").replace("&edge=curl","");
+  return {
+    src:"g", id:it.id, title:v.title||"Untitled", subtitle:v.subtitle||"",
+    authors:v.authors||[], year:(v.publishedDate||"").slice(0,4), date:v.publishedDate||"",
+    publishers:v.publisher?[v.publisher]:[], pages:v.pageCount||null,
+    rating:v.averageRating??null, ratings:v.ratingsCount??null,
+    subjects:v.categories||[], lang:v.language?[v.language]:[], isbns,
+    cover:img, description:(v.description||"").replace(/<[^>]+>/g,""),
+    maturity:v.maturityRating, editions:null,
+    access: a.viewability && a.viewability!=="NO_PAGES" ? (a.viewability==="ALL_PAGES"?"Full view":"Preview") : "No preview",
+    sale: s.saleability==="FOR_SALE" && s.retailPrice ? `${s.retailPrice.amount} ${s.retailPrice.currencyCode}` : (s.saleability==="FREE"?"Free":""),
+    url:v.infoLink||v.canonicalVolumeLink||`https://books.google.com/books?id=${it.id}`,
+    preview:v.previewLink||""
+  };
+}
+
+/* ---------- API: Open Library ---------- */
+const OL_FIELDS = "key,title,subtitle,author_name,author_key,first_publish_year,publisher,isbn,number_of_pages_median,subject,cover_i,edition_count,ratings_average,ratings_count,language,ebook_access,want_to_read_count,already_read_count";
+async function fetchOL(q, field, page){
+  const param = field==="all" ? "q" : field;
+  const val = field==="isbn" ? q.replace(/[-\s]/g,"") : q;
+  const url = `https://openlibrary.org/search.json?${param}=${encodeURIComponent(val)}&limit=${PAGE}&page=${page+1}&fields=${OL_FIELDS}`;
+  const t = performance.now();
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(`Open Library error ${r.status}`);
+  const j = await r.json();
+  return {ms: performance.now()-t, total: j.numFound||j.num_found||0, items:(j.docs||[]).map(normOL)};
+}
+function normOL(d){
+  return {
+    src:"ol", id:d.key, title:d.title||"Untitled", subtitle:d.subtitle||"",
+    authors:d.author_name||[], authorKeys:d.author_key||[], year:d.first_publish_year?String(d.first_publish_year):"", date:d.first_publish_year?`first published ${d.first_publish_year}`:"",
+    publishers:d.publisher||[], pages:d.number_of_pages_median||null,
+    rating:d.ratings_average!=null?Math.round(d.ratings_average*100)/100:null, ratings:d.ratings_count??null,
+    subjects:d.subject||[], lang:d.language||[], isbns:d.isbn||[],
+    cover:d.cover_i?`https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`:"",
+    coverL:d.cover_i?`https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg`:"",
+    description:null, editions:d.edition_count||null,
+    access:{public:"Full view (public)",borrowable:"Borrowable",printdisabled:"Print-disabled access",no_ebook:"No e-book"}[d.ebook_access]||"",
+    readers:(d.want_to_read_count||0)+(d.already_read_count||0) || null,
+    url:`https://openlibrary.org${d.key}`, preview:""
+  };
+}
+async function olDescription(key){
+  try{
+    const r = await fetch(`https://openlibrary.org${key}.json`);
+    const j = await r.json();
+    const d = j.description; return typeof d==="string"?d:(d?.value||"");
+  }catch{ return ""; }
+}
+
+/* ---------- Matching ---------- */
+const normT = t => (t||"").toLowerCase().split(/[:;(\[]/)[0].normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/^(the|a|an)\s+/,"").replace(/[^a-z0-9]+/g," ").trim();
+const lastName = a => (a||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z\s]/g,"").trim().split(/\s+/).pop()||"";
+function matchScore(g, o){
+  const oIs = new Set(o.isbns);
+  if(g.isbns.some(i=>oIs.has(i))) return 3;
+  const tg = normT(g.title), to = normT(o.title);
+  if(!tg || tg!==to) return 0;
+  const ga = new Set(g.authors.map(lastName)), oa = o.authors.map(lastName);
+  if(!g.authors.length || !o.authors.length) return 1;
+  return oa.some(a=>ga.has(a)) ? 2 : 0;
+}
+function buildPairs(){
+  const G = state.g.items, O = state.ol.items;
+  const usedO = new Set(), pairs = [];
+  const gMatched = new Array(G.length).fill(null);
+  // greedy by best score
+  const cands = [];
+  G.forEach((g,i)=>O.forEach((o,j)=>{const s=matchScore(g,o); if(s>0) cands.push([s,i,j]);}));
+  cands.sort((a,b)=>b[0]-a[0] || (a[1]+a[2])-(b[1]+b[2]));
+  const usedG = new Set();
+  for(const [s,i,j] of cands){ if(usedG.has(i)||usedO.has(j)) continue; usedG.add(i); usedO.add(j); gMatched[i]={j,s}; }
+  // order: walk both lists by rank, emitting matches at the earlier rank
+  const emitted = new Set();
+  G.forEach((g,i)=>{
+    if(gMatched[i]) pairs.push({g, o:O[gMatched[i].j], score:gMatched[i].s, rank:Math.min(i,gMatched[i].j)});
+    else pairs.push({g, o:null, score:0, rank:i});
+  });
+  O.forEach((o,j)=>{ if(!usedO.has(j)) pairs.push({g:null, o, score:0, rank:j+0.5}); });
+  pairs.sort((a,b)=>(b.score>0)-(a.score>0) || a.rank-b.rank);
+  // matched first, then fill unmatched G and O side-by-side into shared rows
+  const matched = pairs.filter(p=>p.score>0);
+  const gOnly = pairs.filter(p=>p.g&&!p.o).map(p=>p.g), oOnly = pairs.filter(p=>p.o&&!p.g).map(p=>p.o);
+  state.pairs = matched;
+  state.unpaired = {gOnly, oOnly};
+}
+
+/* ---------- Search flow ---------- */
+async function search(q, field, append=false){
+  q = q.trim(); if(!q) return;
+  const token = ++state.token;
+  if(!append){
+    Object.assign(state,{q,field});
+    for(const k of ["g","ol"]) state[k] = {items:[], total:0, ms:0, err:null, page:0, done:false};
+    state.history = [{q,field}, ...state.history.filter(h=>!(h.q===q&&h.field===field))].slice(0,8);
+    $("#q").value=q; $("#field").value=field; $("#suggest").style.display="none";
+    renderHistory();
+  }
+  state.loading = true; render();
+  const tasks = ["g","ol"].map(async k=>{
+    const s = state[k]; if(s.done && append) return;
+    try{
+      const res = await (k==="g"?fetchGoogle:fetchOL)(q, field, s.page);
+      if(token!==state.token) return;
+      s.items.push(...res.items.filter(n=>!s.items.some(x=>x.id===n.id)));
+      s.total = res.total; s.ms = res.ms; s.err=null; s.page++;
+      if(res.items.length<PAGE || s.items.length>=s.total) s.done=true;
+    }catch(e){ if(token===state.token){ s.err = e.message.includes("Failed to fetch")?"Network blocked — open this file in a regular browser (Chrome, Safari, Firefox).":e.message; } }
+  });
+  await Promise.all(tasks);
+  if(token!==state.token) return;
+  state.loading=false; buildPairs(); render();
+}
+
+/* ---------- Rendering ---------- */
+const fmt = n => n==null?"—":n>=1e6?(n/1e6).toFixed(1)+"M":n>=1e4?Math.round(n/1e3)+"k":n.toLocaleString();
+function pct(arr, f){ return arr.length? Math.round(100*arr.filter(f).length/arr.length):0; }
+function coverEl(b, cls="cover"){
+  return b.cover ? `<img class="${cls}" src="${esc(b.cover)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;${cls}&quot;>${esc(b.title[0]||"?")}</div>'">`
+                 : `<div class="${cls}">${esc((b.title||"?")[0])}</div>`;
+}
+function card(b){
+  if(!b) return "";
+  const facts = [];
+  if(b.year) facts.push(b.year);
+  if(b.pages) facts.push(`${b.pages} pp`);
+  if(b.rating!=null) facts.push(`<span class="star">★</span> ${b.rating} (${fmt(b.ratings)})`);
+  if(b.src==="ol" && b.editions) facts.push(`${b.editions} ed.`);
+  if(b.src==="g" && b.access && b.access!=="No preview") facts.push(b.access);
+  return `<div class="card ${b.src}">${coverEl(b)}<div class="meta"><h3>${esc(b.title)}</h3><div class="au">${esc(b.authors.join(", ")||"Unknown author")}</div><div class="facts">${facts.join("<span>·</span>")}</div></div></div>`;
+}
+function sorted(list){
+  const s = state.sort, l=[...list];
+  const yr = b=>parseInt(b.year)||0;
+  if(s==="newest") l.sort((a,b)=>yr(b)-yr(a));
+  if(s==="oldest") l.sort((a,b)=>(yr(a)||9999)-(yr(b)||9999));
+  if(s==="rating") l.sort((a,b)=>(b.rating??-1)-(a.rating??-1) || (b.ratings??0)-(a.ratings??0));
+  return l;
+}
+function statsHTML(){
+  const G=state.g.items, O=state.ol.items, m=state.pairs.length;
+  const stat=(k,gv,ov,gn,on)=>{
+    const t=(gn||0)+(on||0)||1;
+    return `<div class="stat"><div class="k">${k}</div><div class="v"><b class="tag-g">${gv}</b><b class="tag-ol">${ov}</b></div><div class="bar"><i style="width:${100*(gn||0)/t}%;background:var(--g)"></i><i style="width:${100*(on||0)/t}%;background:var(--ol)"></i></div></div>`;
+  };
+  return `<div class="stats">
+    ${stat("Total hits", fmt(state.g.total), fmt(state.ol.total), state.g.total, state.ol.total)}
+    ${stat("Response", Math.round(state.g.ms)+" ms", Math.round(state.ol.ms)+" ms", state.ol.ms, state.g.ms)}
+    ${stat("With cover", pct(G,b=>b.cover)+"%", pct(O,b=>b.cover)+"%", pct(G,b=>b.cover), pct(O,b=>b.cover))}
+    ${stat("With rating", pct(G,b=>b.rating!=null)+"%", pct(O,b=>b.rating!=null)+"%", pct(G,b=>b.rating!=null), pct(O,b=>b.rating!=null))}
+    <div class="stat"><div class="k">Same book in both</div><div class="v"><b style="color:var(--match)">${m}</b><span style="color:var(--muted);font-size:13px">of ${G.length} / ${O.length} loaded</span></div><div class="bar"><i style="width:${G.length?100*m/Math.max(G.length,O.length):0}%;background:var(--match)"></i></div></div>
+  </div>`;
+}
+function render(){
+  const el = $("#results");
+  if(!state.q){ el.innerHTML=""; return; }
+  const G=state.g, O=state.ol;
+  if(state.loading && !G.items.length && !O.items.length){ el.innerHTML=`<div class="status"><span class="spin"></span> Asking both libraries…</div>`; return; }
+  let h = statsHTML();
+  if(G.err) h+=`<div class="err"><b>Google Books:</b> ${esc(G.err)}</div>`;
+  if(O.err) h+=`<div class="err"><b>Open Library:</b> ${esc(O.err)}</div>`;
+  h += `<div class="toolbar">
+    <div class="seg" role="tablist">
+      ${[["pairs","Side by side"],["g","Google only"],["ol","Open Library only"]].map(([v,l])=>`<button data-view="${v}" class="${state.view===v?"on":""}">${l}</button>`).join("")}
+    </div><span class="spacer"></span>
+    ${state.view==="pairs"?`<label><input type="checkbox" id="mo" ${state.matchedOnly?"checked":""}> Matched only</label>`:
+      `<label>Sort <select id="sort">${[["relevance","Relevance"],["rating","Rating"],["newest","Newest"],["oldest","Oldest"]].map(([v,l])=>`<option value="${v}" ${state.sort===v?"selected":""}>${l}</option>`).join("")}</select></label>`}
+  </div>`;
+
+  if(state.view==="pairs"){
+    h += `<div class="colhead"><div>Google Books</div><div></div><div>Open Library</div></div>`;
+    state.pairs.forEach((p,i)=>{
+      h += `<div class="row matched" data-pair="${i}">${card(p.g)}<div class="link"><span title="${p.score===3?"Same ISBN":"Same title & author"}">${p.score===3?"≡":"≈"}</span></div>${card(p.o)}</div>`;
+    });
+    if(!state.matchedOnly){
+      const {gOnly=[],oOnly=[]} = state.unpaired||{};
+      const n = Math.max(gOnly.length,oOnly.length);
+      if(n && state.pairs.length) h+=`<div class="colhead" style="position:static;color:var(--muted)"><div style="color:var(--muted)">Only found in one catalog ↓</div><div></div><div></div></div>`;
+      for(let i=0;i<n;i++){
+        const g=gOnly[i], o=oOnly[i];
+        h += `<div class="row">${g?`<div data-one="g:${esc(g.id)}" style="display:contents">${card(g)}</div>`:`<div class="card empty">—</div>`}<div class="link"><span>·</span></div>${o?`<div data-one="ol:${esc(o.id)}" style="display:contents">${card(o)}</div>`:`<div class="card empty">—</div>`}</div>`;
+      }
+    }
+    if(!state.pairs.length && state.matchedOnly) h+=`<div class="status">No book appears in both result sets yet. Try “Load more” or a more specific title.</div>`;
+  } else {
+    const src = state[state.view];
+    const matchedIds = new Set(state.pairs.map(p=>(state.view==="g"?p.g:p.o).id));
+    h += `<div class="grid">${sorted(src.items).map(b=>`<div data-one="${b.src}:${esc(b.id)}">${card(b).replace('<div class="au">', matchedIds.has(b.id)?'<span class="badge">in both</span><div class="au">':'<div class="au">')}</div>`).join("")}</div>`;
+    if(!src.items.length) h+=`<div class="status">No results here.</div>`;
+  }
+  if(!G.items.length && !O.items.length && !state.loading) h+=`<div class="status">Nothing found in either catalog. Try a different field or spelling.</div>`;
+  if(!(G.done && O.done) && (G.items.length||O.items.length)) h+=`<button class="more" id="more">${state.loading?'<span class="spin"></span> Loading…':"Load 20 more from each"}</button>`;
+  el.innerHTML = h;
+}
+
+function renderHistory(){
+  $("#history").innerHTML = state.history.length>1 ? state.history.slice(1).map(x=>`<button class="chip" data-f="${x.field}" data-q="${esc(x.q)}">${x.field!=="all"?esc(x.field)+": ":""}${esc(x.q)}</button>`).join("") : "";
+}
+
+/* ---------- Compare drawer ---------- */
+function v(x){ return (x==null||x===""||(Array.isArray(x)&&!x.length)) ? null : x; }
+function chips(arr, field, max=8){
+  if(!v(arr)) return null;
+  const uniq=[...new Set(arr)];
+  return `<div class="chips">${uniq.slice(0,max).map(s=>`<button class="chip" data-f="${field}" data-q="${esc(s)}">${esc(s)}</button>`).join("")}${uniq.length>max?`<span class="na">+${uniq.length-max} more</span>`:""}</div>`;
+}
+function same(a,b,kind){
+  if(a==null||b==null) return null;
+  if(kind==="text") return normT(a)===normT(b);
+  if(kind==="authors") return a.map(lastName).sort().join()===b.map(lastName).sort().join();
+  if(kind==="num") return Math.abs(a-b) <= Math.max(5, 0.05*Math.max(a,b));
+  if(kind==="rating") return Math.abs(a-b) < 0.3;
+  return String(a)===String(b);
+}
+async function openCompare(g, o){
+  const title = (g||o).title;
+  const D = $("#drawer");
+  const rows = [
+    ["Title", g&&g.title+(g.subtitle?": "+g.subtitle:""), o&&o.title+(o.subtitle?": "+o.subtitle:""), "text", true],
+    ["Authors", g&&v(g.authors)&&chips(g.authors,"author"), o&&v(o.authors)&&chips(o.authors,"author"), "authors", false, g?.authors, o?.authors],
+    ["Year", g&&v(g.date), o&&v(o.year), "year", false, g?.year, o?.year],
+    ["Pages", g?.pages, o?.pages&&o.pages+" (median)", "num", false, g?.pages, o?.pages],
+    ["Rating", g?.rating!=null?`★ ${g.rating} · ${fmt(g.ratings)} ratings`:null, o?.rating!=null?`★ ${o.rating} · ${fmt(o.ratings)} ratings`:null, "rating", false, g?.rating, o?.rating],
+    ["Publisher", g&&v(g.publishers)&&esc(g.publishers.join(", ")), o&&v(o.publishers)&&esc([...new Set(o.publishers)].slice(0,6).join(", "))+(o.publishers.length>6?` <span class="na">+${o.publishers.length-6}</span>`:""), "skip"],
+    ["Editions", null, o?.editions, "skip"],
+    ["Readers", null, o?.readers?fmt(o.readers)+" want/read":null, "skip"],
+    ["Subjects", g&&chips(g.subjects,"subject"), o&&chips(o.subjects,"subject",10), "skip"],
+    ["Language", g&&v(g.lang)&&g.lang.join(", "), o&&v(o.lang)&&o.lang.slice(0,8).join(", "), "skip"],
+    ["Access", g&&[g.access,g.sale].filter(Boolean).join(" · "), o&&v(o.access), "skip"],
+    ["ISBNs", g&&v(g.isbns)&&g.isbns.join(", "), o&&v(o.isbns)&&o.isbns.slice(0,4).join(", ")+(o.isbns.length>4?` <span class="na">+${o.isbns.length-4} more</span>`:""), "skip"],
+    ["About", g&&v(g.description)&&`<div class="desc">${esc(g.description)}</div>`, o?`<div class="desc" id="oldesc"><span class="spin"></span></div>`:null, "skip"],
+    ["Links", g&&`<div class="links"><a href="${esc(g.url)}" target="_blank" rel="noopener">Google Books ↗</a>${g.preview?`<a href="${esc(g.preview)}" target="_blank" rel="noopener">Preview ↗</a>`:""}</div>`, o&&`<div class="links"><a href="${esc(o.url)}" target="_blank" rel="noopener">Open Library ↗</a></div>`, "skip"]
+  ];
+  const diffs=[], gWins=[], oWins=[];
+  const body = rows.map(([label,gv,ov,kind,escape,ga,oa])=>{
+    if(gv==null && ov==null) return "";
+    let gc="",oc="";
+    if(g&&o){
+      if(gv!=null && ov==null){ gc="only"; gWins.push(label.toLowerCase()); }
+      if(ov!=null && gv==null){ oc="only"; oWins.push(label.toLowerCase()); }
+      if(kind!=="skip" && gv!=null && ov!=null){
+        const s = same(ga??gv, oa??ov, kind);
+        if(s===false){ gc=oc="diff"; diffs.push(label.toLowerCase()); }
+      }
+    }
+    const cell=(val,cls)=>`<td class="${cls}">${val==null?'<span class="na">not provided</span>':(escape?esc(val):val)}</td>`;
+    return `<tr><th>${label}</th>${g?cell(gv,gc):""}${o?cell(ov,oc):""}</tr>`;
+  }).join("");
+  const both = g&&o;
+  D.innerHTML = `<div class="dhead"><h2>${esc(title)}</h2><button class="x" id="close" aria-label="Close">×</button></div>
+  <div class="dbody">
+    <div class="covers" style="${both?"":"grid-template-columns:1fr"}">
+      ${g?`<figure>${g.cover?`<img src="${esc(g.cover.replace("zoom=1","zoom=2"))}" alt="">`:`<div class="ph">no cover</div>`}<figcaption class="tag-g">Google Books</figcaption></figure>`:""}
+      ${o?`<figure>${o.cover?`<img src="${esc(o.coverL)}" alt="">`:`<div class="ph">no cover</div>`}<figcaption class="tag-ol">Open Library</figcaption></figure>`:""}
+    </div>
+    ${both?`<div class="legend"><span><i style="background:var(--diff)"></i>Sources disagree</span><span><i style="background:var(--match-soft)"></i>Only one source has it</span></div>`:`<div class="legend">Found only in ${g?"Google Books":"Open Library"} — <button class="chip" data-f="title" data-q="${esc(normT(title))}">search this title in both</button></div>`}
+    <table class="cmp">${both?`<thead><tr><th></th><td class="tag-g">Google Books</td><td class="tag-ol">Open Library</td></tr></thead>`:""}<tbody>${body}</tbody></table>
+    ${both?`<div class="verdict"><b>At a glance</b><ul>
+      ${diffs.length?`<li>Disagree on: ${diffs.join(", ")}${diffs.includes("year")?" (Open Library shows first publication; Google shows this edition)":""}.</li>`:"<li>Core details agree.</li>"}
+      ${gWins.length?`<li><span class="tag-g">Google</span> adds: ${gWins.join(", ")}.</li>`:""}
+      ${oWins.length?`<li><span class="tag-ol">Open Library</span> adds: ${oWins.join(", ")}.</li>`:""}
+    </ul></div>`:""}
+  </div>`;
+  D.classList.add("on"); $("#scrim").classList.add("on"); D.setAttribute("aria-hidden","false"); D.scrollTop=0;
+  if(o){
+    const d = await olDescription(o.id);
+    const el = $("#oldesc"); if(el) el.innerHTML = d?esc(d):'<span class="na">not provided</span>';
+  }
+}
+function closeDrawer(){ $("#drawer").classList.remove("on"); $("#scrim").classList.remove("on"); $("#drawer").setAttribute("aria-hidden","true"); }
+
+/* ---------- Events ---------- */
+$("#form").addEventListener("submit", e=>{ e.preventDefault(); search($("#q").value, $("#field").value); });
+document.addEventListener("click", e=>{
+  const chip = e.target.closest("[data-q]");
+  if(chip){ e.preventDefault(); closeDrawer(); search(chip.dataset.q, chip.dataset.f||"all"); window.scrollTo({top:0,behavior:"smooth"}); return; }
+  const vb = e.target.closest("[data-view]"); if(vb){ state.view=vb.dataset.view; render(); return; }
+  if(e.target.id==="more"){ search(state.q, state.field, true); return; }
+  if(e.target.id==="close"||e.target.id==="scrim"){ closeDrawer(); return; }
+  const one = e.target.closest("[data-one]");
+  if(one){
+    const [src,...rest]=one.dataset.one.split(":"); const id=rest.join(":");
+    const b = state[src].items.find(x=>x.id===id);
+    const p = state.pairs.find(p=>(src==="g"?p.g:p.o)?.id===id);
+    openCompare(p?p.g:(src==="g"?b:null), p?p.o:(src==="ol"?b:null)); return;
+  }
+  const row = e.target.closest("[data-pair]");
+  if(row){ const p=state.pairs[+row.dataset.pair]; openCompare(p.g,p.o); }
+});
+document.addEventListener("change", e=>{
+  if(e.target.id==="sort"){ state.sort=e.target.value; render(); }
+  if(e.target.id==="mo"){ state.matchedOnly=e.target.checked; render(); }
+});
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+</script>
+</body>
+</html>
